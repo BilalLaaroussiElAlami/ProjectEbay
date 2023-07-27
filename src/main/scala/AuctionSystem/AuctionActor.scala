@@ -10,9 +10,9 @@ import scala.concurrent.duration.*
 case class SurpassedBid(bid: Bid) extends Message
 class AuctionActor:
   case class AuctionEnded() extends Message
-  var auctiondata:AuctionData = null
+  var auctiondata:AuctionData = null  //only one
   var acceptBids = true
-  var seller:ActorRef[Message] = null
+  var seller:ActorRef[Message] = null //only one
   var ebay:ActorRef[Message]  = null
   var bids: List[Bid] = List()
   def create(Auctiondata: AuctionData, Ebay: ActorRef[Message],  Seller: ActorRef[Message]):Behavior[Message] = Behaviors.setup{ context =>
@@ -34,7 +34,7 @@ class AuctionActor:
       case SimpleMessage(msg) => context.log.info(s"AuctionActor received: $msg")
     Behaviors.same
   }
-  
+
   def processBid(bid:Bid) =
     this.bids = bid :: bids;
     if(bid.price > bids.map(b => b.price).max) bids.foreach(b => b.bidder ! SurpassedBid(bid))

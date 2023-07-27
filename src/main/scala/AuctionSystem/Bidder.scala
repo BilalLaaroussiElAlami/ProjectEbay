@@ -3,6 +3,8 @@ package AuctionSystem
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 
+case class GetAuctions(bidder:ActorRef[Message] = null) extends Message
+
 class Bidder:
   var ebay:ActorRef[Message] = null
   var bank:ActorRef[Message] = null
@@ -22,6 +24,7 @@ class Bidder:
     message match
       case bid:Bid => this.bids = bid :: bids;  bid.auction ! bid
       case SurpassedBid(bid) => ???
+      case g: GetAuctions => ebay ! GetAuctions(context.self)
       case SimpleMessage("printselfAndDependends") => context.log.info("i am bidder " + context.self.toString + " ebay " + ebay + " bank " + bank)
 
     Behaviors.same

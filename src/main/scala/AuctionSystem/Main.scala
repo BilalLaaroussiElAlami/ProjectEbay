@@ -7,6 +7,7 @@ import AuctionSystem._
 
 
 case class AuctionData(itemName: String, price:Double, time: Int = 10)
+case class AuctionReply(auctionActor: ActorRef[Message], item:String, HighestBid:Double) extends Message
 trait Message
 case class SimpleMessage(content:String) extends Message
 case class CreateAuction(auction: AuctionData, ebayActor: ActorRef[Message]) extends Message
@@ -54,7 +55,19 @@ object TestBidder:
 
 
 //Tests 2 bidders bidding on an auction, they get updated when a bid surpassed, bids after auctiontime are not processed
-object TestBid
+object TestBid:
+  def apply():Behavior[Message] = Behaviors.setup{context =>
+    val ebay = context.spawnAnonymous(EbayActor())
+    val bank = context.spawnAnonymous(BankActor())
+    val bidder = context.spawnAnonymous(new Bidder().create("Vanderbilt", Iban("BE123"), ebay, bank))
+    val bidder2 = context.spawnAnonymous(new Bidder().create("Rotschild", Iban("FR123"), ebay, bank))
+    val Seller = context.spawnAnonymous(new SellerActor().create())
+    Seller ! CreateAuction(AuctionData("MonaLisa", 1000000), ebay)
+
+    Thread.sleep(1000) //give some time for the registering to happen
+    context.system.terminate()
+    Behaviors.same
+  }
 
 
 
