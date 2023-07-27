@@ -58,6 +58,7 @@ object EbayActor:
       case SimpleMessage("printauctions") =>
         context.log.info("auctions: " + auctionActors)
     Behaviors.same
+
   }
 
 object System:
