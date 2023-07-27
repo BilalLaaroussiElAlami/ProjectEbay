@@ -4,7 +4,7 @@ import akka.actor.typed
 import akka.actor.typed.scaladsl.{Behaviors, LoggerOps}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior, scaladsl}
 
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{ArrayStack, ListBuffer}
 
 
 
@@ -59,7 +59,7 @@ class Bidder:
   var name:String = null
   var iban:Iban = null
   var bids: List[Bid] = List()
-  def createAuction(name:String, iban: Iban,ebay:ActorRef[Message],bank:ActorRef[Message]):Behavior[Message] = Behaviors.setup { context =>
+  def create(name:String, iban: Iban,ebay:ActorRef[Message],bank:ActorRef[Message]):Behavior[Message] = Behaviors.setup { context =>
     this.ebay = ebay
     this.bank = bank
     this.name = name
@@ -71,16 +71,19 @@ class Bidder:
    def bidderListener(context:ActorRef[Message]):Behavior[Message]  = Behaviors.receive{(context,message) =>
      message match
        case bid:Bid => this.bids = bid :: bids
+       case SimpleMessage("printselfAndDependends") => context.log.info("i am bidder " + context.self.toString + " ebay " + ebay + " bank " + bank)
+
      Behaviors.same
    }
 
 
-object Bank:
+object BankActor:
   var sellers:List[ActorRef[Message]] = List()
   var bidders:List[ActorRef[Message]] = List()
   def apply():Behavior[Message] = Behaviors.receive{(context,message) =>
     message match
       case RegisterBidder(bidder) => bidders = bidder :: bidders
+      case SimpleMessage("printbidders")  => context.log.info("i am bank: " + context.self +    " bidders" + bidders)
     Behaviors.same
   }
 
@@ -92,10 +95,14 @@ object EbayActor:
       case RegisterAuction(auctionActor)  => auctionActors = auctionActor::auctionActors
       case RegisterBidder(bidder)         => bidders = bidder::bidders
       case SimpleMessage("printauctions") => context.log.info("auctions: " + auctionActors)
+      case SimpleMessage("printbidders")  => context.log.info("i am ebay: " + context.self +    " bidders" + bidders)
     Behaviors.same
   }
 
-object System:
+
+//THIS TEST MAKES SELLERS SELLERS AUCTION AUCTIONS
+//TESTS THAT WE CAN MAKE MULTIPLE SELLERS THAT HAVE MULTIPLE AUCTIONS
+object SellersAuctionsTest:
   def apply(): Behavior[Message] = Behaviors.setup { context =>
     // Connections
     val ebay = context.spawnAnonymous(EbayActor())
@@ -115,6 +122,22 @@ object System:
     Behaviors.same
   }
 
+//Tests that bidder is registered at bank and ebay and vice versa
+object TestBidder:
+  def apply():Behavior[Message] = Behaviors.setup{ context =>
+    val ebay = context.spawnAnonymous(EbayActor())
+    val bank = context.spawnAnonymous(BankActor())
+    val bidder = context.spawnAnonymous(new Bidder().create("Vanderbilt", Iban("BE123"), ebay, bank))
+    Thread.sleep(1000) //give some time for the registering to happen
+    bidder ! SimpleMessage("printselfAndDependends")
+    ebay ! SimpleMessage("printbidders")
+    bank ! SimpleMessage("printbidders")
+    context.system.terminate()
+    Behaviors.same
+  }
+
+
 object Main extends App{
-  val system: ActorSystem[Message] = ActorSystem(System(), "AuctionSystem")
+ // val testSellersAndAuctions: ActorSystem[Message] = ActorSystem(SellersAuctionsTest(), "AuctionSystem")
+  val testBidder:ActorSystem[Message] = ActorSystem(TestBidder(), "testbidder")
 }
