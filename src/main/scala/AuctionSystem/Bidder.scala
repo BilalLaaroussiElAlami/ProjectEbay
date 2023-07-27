@@ -10,7 +10,8 @@ class Bidder:
   var bank:ActorRef[Message] = null
   var name:String = null
   var iban:Iban = null
-  var bids: List[Bid] = List()
+  var bids: List[Bid] = List() //A list of bids the bidder has done
+  var liveAuctions: AllAuctions = null
   def create(name:String, iban: Iban,ebay:ActorRef[Message],bank:ActorRef[Message]):Behavior[Message] = Behaviors.setup { context =>
     this.ebay = ebay
     this.bank = bank
@@ -24,8 +25,9 @@ class Bidder:
     message match
       case bid:Bid => this.bids = bid :: bids;  bid.auction ! bid
       case SurpassedBid(bid) => ???
+      case liveAuctions: AllAuctions =>  context.log.info("bidder received auctions"); this.liveAuctions = liveAuctions
       case g: GetAuctions => ebay ! GetAuctions(context.self)
       case SimpleMessage("printselfAndDependends") => context.log.info("i am bidder " + context.self.toString + " ebay " + ebay + " bank " + bank)
-
+      case SimpleMessage("print auctions") => context.log.info("I am bidder " + context.self.toString +" \nauctions are: " + liveAuctions)
     Behaviors.same
   }

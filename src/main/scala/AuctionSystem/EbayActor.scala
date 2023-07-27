@@ -3,8 +3,6 @@ package AuctionSystem
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 
-case class GetAuctionInfo(reply:ActorRef[Message])  extends Message
-case class AllAuctions(content: List[AuctionReply]) extends Message
 
 object EbayActor:
   var auctionActors: List[ActorRef[Message]] = List()
@@ -27,8 +25,8 @@ class AuctionsGetter:
   def create(auctionActors: List[ActorRef[Message]], bidder: ActorRef[Message]):Behavior[Message] = Behaviors.setup{context =>
     this.auctionActors = auctionActors
     this.bidder = bidder
+    if(auctionActors.isEmpty) Behaviors.stopped
     auctionActors.foreach(a => a ! GetAuctionInfo(context.self))
-
     Behaviors.receiveMessage{message =>
       message match
         case a: AuctionReply =>

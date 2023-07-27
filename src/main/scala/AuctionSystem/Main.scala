@@ -5,10 +5,14 @@ import akka.actor.typed.scaladsl.{Behaviors, LoggerOps}
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior, scaladsl}
 import AuctionSystem._
 
+trait Message
 
 case class AuctionData(itemName: String, price:Double, time: Int = 10)
-case class AuctionReply(auctionActor: ActorRef[Message], item:String, HighestBid:Double) extends Message
-trait Message
+case class AuctionReply(auctionActor: ActorRef[Message], item:String, HighestBid:Double) extends Message //an auction will send an auctionreply to biddere
+case class GetAuctionInfo(sender:ActorRef[Message])  extends Message //sent to bidder, an AuctionReply should be sent to sender
+case class AllAuctions(content: List[AuctionReply]) extends Message  //a list of auctions will be gathered in ebay, wrapped in AllAuctions and sent to some bidder
+
+
 case class SimpleMessage(content:String) extends Message
 case class CreateAuction(auction: AuctionData, ebayActor: ActorRef[Message]) extends Message
 case class RegisterAuction(auctionRef: ActorRef[Message]) extends Message  //when registering an auction at ebay for example
@@ -39,7 +43,6 @@ object SellersAuctionsTest:
   }
 
 //Tests that when making bidder it is registered at bank and ebay. And that bank and ebay register the bidder
-
 object TestBidder:
   def apply():Behavior[Message] = Behaviors.setup{ context =>
     val ebay = context.spawnAnonymous(EbayActor())
@@ -52,7 +55,6 @@ object TestBidder:
     context.system.terminate()
     Behaviors.same
   }
-
 
 //Tests 2 bidders bidding on an auction, they get updated when a bid surpassed, bids after auctiontime are not processed
 object TestBid:
@@ -69,9 +71,26 @@ object TestBid:
     Behaviors.same
   }
 
+//test that a bidder can get auctions from ebay
+object TestGetAuctions:
+  def apply():Behavior[Message] = Behaviors.setup { context =>
+    val ebay = context.spawnAnonymous(EbayActor())
+    val bank = context.spawnAnonymous(BankActor())
+    val seller = context.spawnAnonymous(new SellerActor().create())
+    seller ! CreateAuction(AuctionData("vase", 20, 100), ebay)
+    seller ! CreateAuction(AuctionData("pot",10,100), ebay)
+    Thread.sleep(2000) //wait for auctions get registered at ebay
+    val bidder = context.spawnAnonymous(new Bidder().create("Vanderbilt", Iban("BE123"), ebay, bank))
 
+    bidder ! GetAuctions()
+    Thread.sleep(2000) //wait for bidder to receive auctions
+    bidder ! SimpleMessage("print auctions")
+    context.system.terminate()
+    Behaviors.same
+  }
 
-object Main extends App{
-  val testSellersAndAuctions: ActorSystem[Message] = ActorSystem(SellersAuctionsTest(), "AuctionSystem")
-  val testBidder:ActorSystem[Message] = ActorSystem(TestBidder(), "testbidder")
+object Main extends App {
+  //val testSellersAndAuctions: ActorSystem[Message] = ActorSystem(SellersAuctionsTest(), "AuctionSystem")
+  //val testBidder: ActorSystem[Message] = ActorSystem(TestBidder(), "testbidder")
+  val testGetAuctions: ActorSystem[Message] = ActorSystem(TestGetAuctions(), "testgetauctions")
 }

@@ -3,8 +3,8 @@ package AuctionSystem
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.{Actor, ActorLogging, Timers}
-import java.time.Duration._
 
+import java.time.Duration.*
 import scala.concurrent.duration.*
 
 case class SurpassedBid(bid: Bid) extends Message
@@ -29,6 +29,7 @@ class AuctionActor:
     message match
       case AuctionEnded() => acceptBids = false
       case bid:Bid if acceptBids => processBid(bid)
+      case GetAuctionInfo(sender) => sender ! AuctionReply(context.self, auctiondata.itemName, bids.map(_.price).maxOption.getOrElse(auctiondata.price).asInstanceOf[Double])
       case SimpleMessage("printAuctionData") =>
         context.log.info(auctiondata.toString + " " + "from " + context.self + " seller is "  + this.seller.path)
       case SimpleMessage(msg) => context.log.info(s"AuctionActor received: $msg")
