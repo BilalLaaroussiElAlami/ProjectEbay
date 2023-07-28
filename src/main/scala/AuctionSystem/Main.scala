@@ -8,10 +8,11 @@ import AuctionSystem._
 trait Message
 
 case class AuctionData(itemName: String, price:Double, time: Int = 10)
-case class AuctionReply(auctionActor: ActorRef[Message], item:String, HighestBid:Double) extends Message //an auction will send an auctionreply to biddere
+case class AuctionReply(auctionActor: ActorRef[Message], itemName:String, HighestBid:Double) extends Message //an auction will send an auctionreply to biddere
+case class GetAuctions(bidder:ActorRef[Message] = null) extends Message //ebay will receive these messages from bidders
 case class GetAuctionInfo(sender:ActorRef[Message])  extends Message //sent to bidder, an AuctionReply should be sent to sender
-case class AllAuctions(content: List[AuctionReply]) extends Message  //a list of auctions will be gathered in ebay, wrapped in AllAuctions and sent to some bidder
-
+case class AllAuctions(content: List[AuctionReply]) extends Message:  //a list of auctions will be gathered in ebay, wrapped in AllAuctions and sent to some bidder
+  def getAuctionActorWithItemName(name:String) = content.find(a => a.itemName == name)
 
 case class SimpleMessage(content:String) extends Message
 case class CreateAuction(auction: AuctionData, ebayActor: ActorRef[Message]) extends Message
@@ -22,7 +23,7 @@ case class Iban(numbers:String)
 
 
 //TESTS THAT WE CAN MAKE MULTIPLE SELLERS THAT HAVE MULTIPLE AUCTIONS
-object SellersAuctionsTest:
+object TestSellersAuctions:
   def apply(): Behavior[Message] = Behaviors.setup { context =>
     // Connections
     val ebay = context.spawnAnonymous(EbayActor())
@@ -89,8 +90,36 @@ object TestGetAuctions:
     Behaviors.same
   }
 
+// Tests that bidders can bid on an auction
+// When they have the hights bid all bidders of that auction will be informed
+// an auction only accepts bids for a certain amount of time
+object TestAuctioning:
+  def apply():Behavior[Message] = Behaviors.setup{ context =>
+    val ebay = context.spawnAnonymous(EbayActor())
+    val bank = context.spawnAnonymous(BankActor())
+    val FirstBidder = context.spawnAnonymous(new Bidder().create("Vanderbilt", Iban("BE123"), ebay, bank))
+    val SecondBidder= context.spawnAnonymous(new Bidder().create("Rotschild", Iban("FR123"), ebay, bank))
+    val Seller = context.spawnAnonymous(new SellerActor().create())
+    Seller ! CreateAuction(AuctionData("vase", 5, 5), ebay)  //Auction available for 10 seconds
+    Thread.sleep(1000) //wait for auctions to be registered at ebay
+    FirstBidder ! GetAuctions()
+    SecondBidder! GetAuctions()
+    Thread.sleep(1000) //wait for bidders to get auctions
+    FirstBidder !  MakeBid("vase", 30)  //made a higher bid,  al bidders should be informed -> will be printed on screen
+    Thread.sleep(1000) //wait first bid is processed
+    SecondBidder! MakeBid("vase", 40)
+    Thread.sleep(3000)  //6 seconds have passsed since creating auction the auction's time is 5 seconds, so no bids should be accepted from now on
+    SecondBidder ! MakeBid("vase", 50)
+
+
+    context.system.terminate()
+    Behaviors.same
+  }
+
+
 object Main extends App {
   //val testSellersAndAuctions: ActorSystem[Message] = ActorSystem(SellersAuctionsTest(), "AuctionSystem")
   //val testBidder: ActorSystem[Message] = ActorSystem(TestBidder(), "testbidder")
-  val testGetAuctions: ActorSystem[Message] = ActorSystem(TestGetAuctions(), "testgetauctions")
+  //val testGetAuctions: ActorSystem[Message] = ActorSystem(TestGetAuctions(), "testgetauctions")
+  val testAuctionTime:ActorSystem[Message] = ActorSystem(TestAuctioning(), "testauction")
 }
