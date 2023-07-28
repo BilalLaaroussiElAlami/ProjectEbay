@@ -134,10 +134,23 @@ object TestRebid:
     Eric !  MakeBid("vase", 30)  //erics bids 30 euro NOT ENOUGH
     Thread.sleep(4000) //wait for the auction to end, the bid should become active again after the auction actor received a  BidderNotVerified message from the bank
     Bob ! MakeBid("vase", 30) //This bid should be accepted
-    context.system.terminate()
     Behaviors.same
   }
 
+
+object TestbankAcknowledgeBusinessHanshake:
+    def apply(): Behavior[Message] = Behaviors.setup { context =>
+      val ebay = context.spawnAnonymous(EbayActor())
+      val bank = context.spawnAnonymous(BankActor())
+      val FirstBidder = context.spawnAnonymous(new Bidder().create("Vanderbilt", Iban("BE123", 1000000), ebay, bank))
+      val Seller = context.spawnAnonymous(new SellerActor().create(bank))
+      Seller ! CreateAuction(AuctionData("vase", 5, 5), ebay) //Auction available for 10 seconds
+      Thread.sleep(1000) //wait for auctions to be registered at ebay
+      FirstBidder ! GetAuctions()
+      Thread.sleep(1000) //wait for bidder to get auctions
+      FirstBidder ! MakeBid("vase", 30)
+      Behaviors.same
+  }
 
 
 object Main extends App {
@@ -145,6 +158,6 @@ object Main extends App {
   //val testBidder: ActorSystem[Message] = ActorSystem(TestBidder(), "testbidder")
   //val testGetAuctions: ActorSystem[Message] = ActorSystem(TestGetAuctions(), "testgetauctions")
   //val testAuctionTime:ActorSystem[Message] = ActorSystem(TestAuctioning(), "testauction")
-  val testRebid:ActorSystem[Message] = ActorSystem(TestRebid(),"testRebid")
-
+  //val testRebid:ActorSystem[Message] = ActorSystem(TestRebid(),"testRebid")
+  val testBankSaleConclusion :ActorSystem[Message] = ActorSystem(TestbankAcknowledgeBusinessHanshake(),"testRebid")
 }

@@ -30,10 +30,10 @@ class Bidder:
           this.bids = bid :: bids;
           bid.auction ! bid
       //A bidder can get SurpassedBid for his own bid
-      case SurpassedBid(bid) => context.log.info("I am " + name + " someone surpassed me 😡 with : " + bid)
+      case SurpassedBid(bid) => context.log.info("I am " + name + " someone surpassed my bid 😡 with: " + bid)
       case liveAuctions: AllAuctions => this.liveAuctions = liveAuctions
       case g: GetAuctions => ebay ! GetAuctions(context.self)
-
+      case NotifySale(reply) => reply ! SaleAcknowledged()
       case SimpleMessage("printselfAndDependends") => context.log.info("i am bidder " + context.self.toString + " ebay " + ebay + " bank " + bank)
       case SimpleMessage("print auctions") => context.log.info("I am bidder " + context.self.toString +" \nauctions are: " + liveAuctions)
     Behaviors.same

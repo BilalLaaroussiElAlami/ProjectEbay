@@ -10,7 +10,7 @@ import java.time.Duration.*
 import scala.concurrent.duration.*
 
 case class SurpassedBid(bid: Bid) extends Message
-case class VerifyBidder(name:String, pay:Int, reply: ActorRef[Message]) extends Message
+case class VerifyBidder(name:String, pay:Int, auctionActor: ActorRef[Message], SellerActor:ActorRef[Message], bidderActor:ActorRef[Message]) extends Message
 case class VerifyBidderTimeout() extends Message
 case class BidderVerified() extends Message
 case class BidderNotVerified() extends Message
@@ -39,9 +39,11 @@ class AuctionActor:
   def receive (context:ActorRef[Message]):Behavior[Message] = Behaviors.receive{ (context, message) =>
     message match
       case AuctionEnded() =>
-        context.log.info("------------Auction ended--------------")
+        context.log.info(" ⌛️ Auction ended")
         acceptBids = false;
-        if(bids.nonEmpty){  context.log.info("the max bidder is " + MaxBidder()); context.spawnAnonymous(new contactBank().create(this.bank, context.self, MaxBidder().namebidder, MaxBidder().price))}
+        if(bids.nonEmpty)
+          context.log.info("the auction winner 🏆 is " + MaxBidder().namebidder, " he/she offered " + MaxBidder().price);
+          context.spawnAnonymous(new contactBank().create(this.bank, context.self, seller,  MaxBidder().namebidder, MaxBidder().price, MaxBidder().bidder))
       case bid:Bid  =>
         if acceptBids then processBid(context, bid) else context.log.info("times up 😩 🔔 bid failed! " + bid)
       case GetAuctionInfo(sender) =>
@@ -54,6 +56,9 @@ class AuctionActor:
       case SimpleMessage("printAuctionData") =>
         context.log.info(auctiondata.toString + " " + "from " + context.self + " seller is "  + this.seller.path)
       case SimpleMessage(msg) => context.log.info(s"AuctionActor received: $msg")
+      case BidderVerified() => context.log.info("Auction knows bidder is verified")
+      case BidderNotVerified() => context.log.info("Auction knows bidder is not verified")
+      case VerifyBidderTimeout() => context.log.info("Auction knows VerifyBidderTimeout")
     Behaviors.same
   }
 
@@ -66,16 +71,15 @@ class AuctionActor:
     bids = bid :: bids
 
 class contactBank:
-  def create(bankActor: ActorRef[Message], auctionActor: ActorRef[Message], auctionWinnerName:String, toPay:Int) = Behaviors.setup{context =>
-    context.log.info("auctionWinnerName " + auctionWinnerName)
+  def create(bankActor: ActorRef[Message], auctionActor: ActorRef[Message],seller:ActorRef[Message], auctionWinnerName:String, toPay:Int, bidderActor: ActorRef[Message]) = Behaviors.setup{context =>
     val timeout = 5.seconds
-    bankActor ! VerifyBidder(auctionWinnerName, toPay, context.self)
+    bankActor ! VerifyBidder(auctionWinnerName, toPay, context.self, seller, bidderActor)
     context.setReceiveTimeout(timeout, VerifyBidderTimeout())
     Behaviors.receiveMessage{message =>
       message match
-        case BidderVerified() => context.log.info("Bidder Verified " + auctionWinnerName); auctionActor ! BidderVerified()
-        case BidderNotVerified() => context.log.info("Bidder no Verified " + auctionWinnerName); auctionActor ! BidderNotVerified()
-        case VerifyBidderTimeout() => context.log.info("Auction didn't get response in time "); auctionActor ! VerifyBidderTimeout()
+        case BidderVerified() =>  auctionActor ! BidderVerified()
+        case BidderNotVerified() =>  auctionActor ! BidderNotVerified()
+        case VerifyBidderTimeout() =>  auctionActor ! VerifyBidderTimeout()
       Behaviors.stopped
     }
   }
