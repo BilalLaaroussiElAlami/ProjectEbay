@@ -21,7 +21,7 @@ case class RegisterAuction(auctionRef: ActorRef[Message]) extends Message  //whe
 //Ebay wont need name nor string so default values is null, but bank does need that
 case class RegisterBidder(bidderRef: ActorRef[Message], name:String = null, iban:Iban = null) extends Message
 case class Bid(price:Int, bidder:ActorRef[Message], auction: ActorRef[Message], namebidder:String, iban:Iban) extends Message
-case class Iban(numbers:String, balance:Int)
+case class Iban(numbers:String, var balance:Int)
 
 
 //TESTS THAT WE CAN MAKE MULTIPLE SELLERS THAT HAVE MULTIPLE AUCTIONS
@@ -142,7 +142,7 @@ object TestbankAcknowledgeBusinessHanshake:
     def apply(): Behavior[Message] = Behaviors.setup { context =>
       val ebay = context.spawnAnonymous(EbayActor())
       val bank = context.spawnAnonymous(BankActor())
-      val FirstBidder = context.spawnAnonymous(new Bidder().create("Vanderbilt", Iban("BE123", 1000000), ebay, bank))
+      val FirstBidder = context.spawnAnonymous(new Bidder().create("Vanderbilt", Iban("BE123", 100), ebay, bank))
       val Seller = context.spawnAnonymous(new SellerActor().create(bank))
       Seller ! CreateAuction(AuctionData("vase", 5, 5), ebay) //Auction available for 10 seconds
       Thread.sleep(1000) //wait for auctions to be registered at ebay

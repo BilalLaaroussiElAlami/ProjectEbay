@@ -6,7 +6,7 @@ import akka.actor.typed.scaladsl.Behaviors
 case class NotifySale(reply : ActorRef[Message]) extends Message
 case class AcknowledgementTimeout() extends Message
 case class SaleAcknowledged() extends Message
-case class SaleConcluded() extends Message
+case class SaleConcluded(bidder:ActorRef[Message], toPay:Int) extends Message
 
 object BankActor:
   var sellers:List[ActorRef[Message]] = List()
@@ -19,10 +19,14 @@ object BankActor:
         val is_verified =  checkBidderVerified(name:String,toPay:Int)
         if is_verified then
           auctionActor ! BidderVerified()
-          context.spawnAnonymous(new Saga().create(sellerActor,bidderActor,context.self))
+          context.spawnAnonymous(new Saga().create(sellerActor,bidderActor,context.self,toPay))
         else
           auctionActor ! BidderNotVerified()
-      case SaleConcluded() => context.log.info("SALE CONCLUDED")
+      case SaleConcluded(bidder,toPay) =>
+        context.log.info(" ✅ sale concluded ✅")
+        //Only now when the sale is concluded we decrease the bidders money
+        bidders.find(_._1 == bidder).get._3.balance -= toPay
+        context.log.info( bidders.find(_._1 == bidder).get._2 + " bought the item, new balance 📉 is " +  bidders.find(_._1 == bidder).get._3.balance)
       case AcknowledgementTimeout() => context.log.info("SALE FAILED")
     Behaviors.same
   }
@@ -35,10 +39,10 @@ object BankActor:
 //This actor will send that the item will be sold and will receive acknowledgement
 //Business handshake pattern
 class Saga:
-  def create(seller: ActorRef[Message], bidder: ActorRef[Message], bank:ActorRef[Message]): Behavior[Message] =
-    notifySeller(seller, bidder,bank)
+  def create(seller: ActorRef[Message], bidder: ActorRef[Message], bank:ActorRef[Message], toPay:Int): Behavior[Message] =
+    notifySeller(seller, bidder,bank, toPay)
 
-  def notifySeller(seller: ActorRef[Message], bidder: ActorRef[Message], bank:ActorRef[Message]): Behavior[Message] =
+  def notifySeller(seller: ActorRef[Message], bidder: ActorRef[Message], bank:ActorRef[Message], toPay:Int): Behavior[Message] =
     Behaviors.setup { context =>
       context.log.info(s"Sending notification to the seller")
       seller ! NotifySale(context.self)
@@ -47,7 +51,7 @@ class Saga:
         message match
           case SaleAcknowledged() =>
             context.log.info("Sale acknowledged by seller ✅")
-            notifyBidder(bidder, bank);
+            notifyBidder(bidder, bank,toPay);
           case AcknowledgementTimeout() =>
             context.log.info("Sale not acknowledged by seller because of time out ⌛️ " )
             bank ! AcknowledgementTimeout()
@@ -55,7 +59,7 @@ class Saga:
     }
   }
 
-  def notifyBidder(bidder: ActorRef[Message], bank:ActorRef[Message]):
+  def notifyBidder(bidder: ActorRef[Message], bank:ActorRef[Message], toPay:Int):
   Behavior[Message] = Behaviors.setup { context =>
     context.log.info(s"Sending notification to bidder")
     bidder ! NotifySale(context.self)
@@ -64,7 +68,7 @@ class Saga:
       message match
         case SaleAcknowledged() =>
           context.log.info(s"Sale acknowledged also by bidder ✅")
-          bank ! SaleConcluded()
+          bank ! SaleConcluded(bidder, toPay)
         case AcknowledgementTimeout() =>
           context.log.info("Sale not acknowledged by seller because of time out ⌛️ " )
           bank ! AcknowledgementTimeout()
