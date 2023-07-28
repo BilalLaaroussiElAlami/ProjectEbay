@@ -3,7 +3,7 @@ package AuctionSystem
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 
-case class MakeBid(name:String, offer:Int) extends Message
+case class MakeBid(name:String, offer:Int, bidderName:String = null, iban: Iban = null) extends Message
 
 class Bidder:
   var ebay:ActorRef[Message] = null
@@ -17,21 +17,21 @@ class Bidder:
     this.bank = bank
     this.name = name
     this.iban = iban
-    bank ! RegisterBidder(context.self)
-    ebay ! RegisterBidder(context.self)
+    bank ! RegisterBidder(context.self, this.name, this.iban)
+    ebay ! RegisterBidder(context.self, this.name, this.iban)
     bidderListener(context.self)
   }
   def bidderListener(context:ActorRef[Message]):Behavior[Message]  = Behaviors.receive{(context,message) =>
     message match
-      case MakeBid(itemName, offer)  =>
+      case MakeBid(itemName, offer, _, _)  =>
         val auction = liveAuctions.getAuctionActorWithItemName(itemName)
         if(auction.nonEmpty)
-          val bid = Bid(offer, context.self, auction.get.auctionActor);
+          val bid = Bid(offer, context.self, auction.get.auctionActor, name,iban);
           this.bids = bid :: bids;
           bid.auction ! bid
       //A bidder can get SurpassedBid for his own bid
       case SurpassedBid(bid) => context.log.info("I am " + name + " someone surpassed me 😡 with : " + bid)
-      case liveAuctions: AllAuctions =>  context.log.info("bidder received auctions"); this.liveAuctions = liveAuctions
+      case liveAuctions: AllAuctions => this.liveAuctions = liveAuctions
       case g: GetAuctions => ebay ! GetAuctions(context.self)
 
       case SimpleMessage("printselfAndDependends") => context.log.info("i am bidder " + context.self.toString + " ebay " + ebay + " bank " + bank)

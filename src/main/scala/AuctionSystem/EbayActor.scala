@@ -10,7 +10,7 @@ object EbayActor:
   def apply(): Behavior[Message] = Behaviors.receive{(context,message) =>
     message match
       case RegisterAuction(auctionActor)  => auctionActors = auctionActor::auctionActors
-      case RegisterBidder(bidder)         => bidders = bidder::bidders
+      case RegisterBidder(bidder,_,_)         => bidders = bidder::bidders
       case GetAuctions(bidder)            => context.spawnAnonymous(new AuctionsGetter().create(auctionActors, bidder))
       case SimpleMessage("printauctions") => context.log.info("auctions: " + auctionActors)
       case SimpleMessage("printbidders")  => context.log.info("i am ebay: " + context.self +    " bidders" + bidders)
