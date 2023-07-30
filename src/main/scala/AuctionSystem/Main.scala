@@ -7,7 +7,7 @@ import AuctionSystem._
 
 trait Message
 
-case class AuctionData(itemName: String, price:Double, time: Int = 10)
+case class AuctionData(itemName: String, price:Double, time: Int = 10, gracePeriod:Int = 10)
 case class AuctionReply(auctionActor: ActorRef[Message], itemName:String, HighestBid:Double) extends Message //an auction will send an auctionreply to biddere
 case class GetAuctions(bidder:ActorRef[Message] = null) extends Message //ebay will receive these messages from bidders
 case class GetAuctionInfo(sender:ActorRef[Message])  extends Message //sent to bidder, an AuctionReply should be sent to sender
@@ -19,9 +19,10 @@ case class CreateAuction(auction: AuctionData, ebayActor: ActorRef[Message]) ext
 case class RegisterAuction(auctionRef: ActorRef[Message]) extends Message  //when registering an auction at ebay for example
 //when registering a bidder at the bank
 //Ebay wont need name nor string so default values is null, but bank does need that
-case class RegisterBidder(bidderRef: ActorRef[Message], name:String = null, iban:Iban = null) extends Message
+case class RegisterBidder(bidderRef: ActorRef[Message], nameBidder:String = null, iban:Iban = null) extends Message
 case class Bid(price:Int, bidder:ActorRef[Message], auction: ActorRef[Message], namebidder:String, iban:Iban) extends Message
 case class Iban(numbers:String, var balance:Int)
+case class Stop() extends Message
 
 
 //TESTS THAT WE CAN MAKE MULTIPLE SELLERS THAT HAVE MULTIPLE AUCTIONS
@@ -153,11 +154,31 @@ object TestbankAcknowledgeBusinessHanshake:
   }
 
 
+//Tests that a user can return an item when still in the grace period
+object TestReturnItem:
+  def apply(): Behavior[Message] = Behaviors.setup { context =>
+    val ebay = context.spawnAnonymous(EbayActor())
+    val bank = context.spawnAnonymous(BankActor())
+    val FirstBidder = context.spawnAnonymous(new Bidder().create("Vanderbilt", Iban("BE123", 100), ebay, bank))
+    val Seller = context.spawnAnonymous(new SellerActor().create(bank))
+    Seller ! CreateAuction(AuctionData("vase", 5, 5, 5), ebay) //Auction available for 5 seconds
+    Thread.sleep(1000) //wait for auctions to be registered at ebay
+    FirstBidder ! GetAuctions()
+    Thread.sleep(1000) //wait for bidder to get auctions
+    FirstBidder ! MakeBid("vase", 30)
+    Thread.sleep(4000) //wait until auction is over
+    //Thread.sleep(5000) //Wait until graceperiod is over (un)comment this line to see what happens when trying to return out or inside the grace period)
+    FirstBidder ! ReturnItem("vase")
+    Behaviors.same
+  }
+
+
 object Main extends App {
-  //val testSellersAndAuctions: ActorSystem[Message] = ActorSystem(TestSellersAuctions(), "AuctionSystem")
-  //val testBidder: ActorSystem[Message] = ActorSystem(TestBidder(), "testbidder")
-  //val testGetAuctions: ActorSystem[Message] = ActorSystem(TestGetAuctions(), "testgetauctions")
-  //val testAuctionTime:ActorSystem[Message] = ActorSystem(TestAuctioning(), "testauction")
-  //val testRebid:ActorSystem[Message] = ActorSystem(TestRebid(),"testRebid")
+  val testSellersAndAuctions: ActorSystem[Message] = ActorSystem(TestSellersAuctions(), "AuctionSystem")
+  val testBidder: ActorSystem[Message] = ActorSystem(TestBidder(), "testbidder")
+  val testGetAuctions: ActorSystem[Message] = ActorSystem(TestGetAuctions(), "testgetauctions")
+  val testAuctionTime:ActorSystem[Message] = ActorSystem(TestAuctioning(), "testauction")
+  val testRebid:ActorSystem[Message] = ActorSystem(TestRebid(),"testRebid")
   val testBankSaleConclusion :ActorSystem[Message] = ActorSystem(TestbankAcknowledgeBusinessHanshake(),"testRebid")
+  val testReturn :ActorSystem[Message] = ActorSystem(TestReturnItem(),"testReturn")
 }

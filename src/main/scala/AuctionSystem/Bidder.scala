@@ -4,6 +4,7 @@ import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
 
 case class MakeBid(name:String, offer:Int, bidderName:String = null, iban: Iban = null) extends Message
+case class ReturnItem(itemName:String, buyerName:String = null) extends Message
 
 class Bidder:
   var ebay:ActorRef[Message] = null
@@ -12,6 +13,7 @@ class Bidder:
   var iban:Iban = null
   var bids: List[Bid] = List() //A list of bids the bidder has done
   var liveAuctions: AllAuctions = AllAuctions(List[AuctionReply]())
+  var OwnedItems = List[(String, Boolean, ActorRef[Message])]()  //(ame_item, is_returnable, seller)
   def create(name:String, iban: Iban,ebay:ActorRef[Message],bank:ActorRef[Message]):Behavior[Message] = Behaviors.setup { context =>
     this.ebay = ebay
     this.bank = bank
@@ -33,7 +35,19 @@ class Bidder:
       case SurpassedBid(bid) => context.log.info("I am " + name + " someone surpassed my bid 😡 with: " + bid)
       case liveAuctions: AllAuctions => this.liveAuctions = liveAuctions
       case g: GetAuctions => ebay ! GetAuctions(context.self)
+      case SaleConcluded(bidder, seller, nameItem, toPay) =>
+        context.log.info(name + " added ➕ item: " + nameItem)
+        OwnedItems =  (nameItem, true, seller) :: OwnedItems
       case NotifySale(reply) => reply ! SaleAcknowledged()
+      case ReturnItem(itemName,_) =>
+        context.log.info(name + " wants to return" + itemName)
+        val Seller = OwnedItems.find(_._1 == itemName).get._3
+        OwnedItems = OwnedItems.filterNot(_._1 == itemName)
+        Seller ! ReturnItem(itemName, name)
+        //TODO contact bank again as well to reimburse
+      case AuctionReopened(a) =>
+        context.log.info(name  + " knows that auction is reopened 🔄")
+
       case SimpleMessage("printselfAndDependends") => context.log.info("i am bidder " + context.self.toString + " ebay " + ebay + " bank " + bank)
       case SimpleMessage("print auctions") => context.log.info("I am bidder " + context.self.toString +" \nauctions are: " + liveAuctions)
     Behaviors.same
