@@ -167,18 +167,22 @@ object TestReturnItem:
     Thread.sleep(1000) //wait for bidder to get auctions
     FirstBidder ! MakeBid("vase", 30)
     Thread.sleep(4000) //wait until auction is over
-    //Thread.sleep(5000) //Wait until graceperiod is over (un)comment this line to see what happens when trying to return out or inside the grace period)
+    //Wait until graceperiod is over uncomment this line to see what happens when trying to return outside the grace period)
+    //Thread.sleep(5000)
     FirstBidder ! ReturnItem("vase")
     Behaviors.same
   }
+  
+
+    
 
 
 object Main extends App {
-  val testSellersAndAuctions: ActorSystem[Message] = ActorSystem(TestSellersAuctions(), "AuctionSystem")
+ /* val testSellersAndAuctions: ActorSystem[Message] = ActorSystem(TestSellersAuctions(), "AuctionSystem")
   val testBidder: ActorSystem[Message] = ActorSystem(TestBidder(), "testbidder")
   val testGetAuctions: ActorSystem[Message] = ActorSystem(TestGetAuctions(), "testgetauctions")
   val testAuctionTime:ActorSystem[Message] = ActorSystem(TestAuctioning(), "testauction")
   val testRebid:ActorSystem[Message] = ActorSystem(TestRebid(),"testRebid")
-  val testBankSaleConclusion :ActorSystem[Message] = ActorSystem(TestbankAcknowledgeBusinessHanshake(),"testRebid")
+  val testBankSaleConclusion :ActorSystem[Message] = ActorSystem(TestbankAcknowledgeBusinessHanshake(),"testRebid")*/
   val testReturn :ActorSystem[Message] = ActorSystem(TestReturnItem(),"testReturn")
 }

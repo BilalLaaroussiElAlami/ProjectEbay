@@ -32,7 +32,7 @@ class Bidder:
           this.bids = bid :: bids;
           bid.auction ! bid
       //A bidder can get SurpassedBid for his own bid
-      case SurpassedBid(bid) => context.log.info("I am " + name + " someone surpassed my bid 😡 with: " + bid)
+      case SurpassedBid(bid) => context.log.info(name + " knows there is a new highest bid \uD83D\uDD1D: " + bid)
       case liveAuctions: AllAuctions => this.liveAuctions = liveAuctions
       case g: GetAuctions => ebay ! GetAuctions(context.self)
       case SaleConcluded(bidder, seller, nameItem, toPay) =>
@@ -40,7 +40,7 @@ class Bidder:
         OwnedItems =  (nameItem, true, seller) :: OwnedItems
       case NotifySale(reply) => reply ! SaleAcknowledged()
       case ReturnItem(itemName,_) =>
-        context.log.info(name + " wants to return" + itemName)
+        context.log.info(name + " wants to return " + itemName)
         val Seller = OwnedItems.find(_._1 == itemName).get._3
         OwnedItems = OwnedItems.filterNot(_._1 == itemName)
         Seller ! ReturnItem(itemName, name)
